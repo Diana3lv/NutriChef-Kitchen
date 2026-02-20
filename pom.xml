@@ -49,6 +49,43 @@
             <artifactId>rest-assured</artifactId>
             <scope>test</scope>
         </dependency>
+        
+        <!-- PostgreSQL JDBC Driver -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jdbc-postgresql</artifactId>
+        </dependency>
+        
+        <!-- Hibernate ORM with Panache -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-orm-panache</artifactId>
+        </dependency>
+        
+        <!-- SmallRye JWT for authentication -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-jwt</artifactId>
+        </dependency>
+        
+        <!-- SmallRye JWT Build for token generation -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-jwt-build</artifactId>
+        </dependency>
+        
+        <!-- BCrypt for password hashing -->
+        <dependency>
+            <groupId>org.mindrot</groupId>
+            <artifactId>jbcrypt</artifactId>
+            <version>0.4</version>
+        </dependency>
+        
+        <!-- Jackson for JSON processing -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
