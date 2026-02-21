@@ -1,4 +1,4 @@
-package org.dsoft.entity;
+package org.dsoft.entity.model;
 
 public enum UserRole {
     USER,

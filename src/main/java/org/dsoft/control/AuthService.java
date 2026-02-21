@@ -1,15 +1,17 @@
-package org.dsoft.service;
+package org.dsoft.control;
 
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 
-import org.dsoft.dto.AuthResponse;
-import org.dsoft.dto.LoginRequest;
-import org.dsoft.dto.RegisterRequest;
-import org.dsoft.dto.UserDTO;
-import org.dsoft.entity.User;
-import org.dsoft.entity.UserRole;
+import org.dsoft.entity.dto.AuthResponse;
+import org.dsoft.entity.dto.LoginRequest;
+import org.dsoft.entity.dto.RegisterRequest;
+import org.dsoft.entity.dto.UserDTO;
+import org.dsoft.entity.model.User;
+import org.dsoft.entity.model.UserRole;
+import org.dsoft.exception.AuthenticationException;
+import org.dsoft.exception.ValidationException;
 import org.mindrot.jbcrypt.BCrypt;
 
 import io.smallrye.jwt.build.Jwt;
@@ -25,7 +27,7 @@ public class AuthService {
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (User.existsByEmail(request.email())) {
-            throw new RuntimeException("Email already in use");
+            throw new ValidationException("Email already in use");
         }
         
         validatePassword(request.password());
@@ -41,7 +43,7 @@ public class AuthService {
         user.persist();
         
         String token = generateToken(user);
-        UserDTO userDTO = toUserDTO(user);
+        UserDTO userDTO = user.toUserDTO();
         return new AuthResponse(token, userDTO);
     }
 
@@ -49,15 +51,15 @@ public class AuthService {
         User user = User.findByEmail(request.email());
         
         if (user == null) {
-            throw new RuntimeException("Invalid credentials");
+            throw new AuthenticationException("Invalid credentials");
         }
 
         if (!BCrypt.checkpw(request.password(), user.password)) {
-            throw new RuntimeException("Invalid credentials");
+            throw new AuthenticationException("Invalid credentials");
         }
 
         String token = generateToken(user);
-        UserDTO userDTO = toUserDTO(user);
+        UserDTO userDTO = user.toUserDTO();
         return new AuthResponse(token, userDTO);
     }
 
@@ -73,29 +75,19 @@ public class AuthService {
 
     private void validatePassword(String password) {
         if (password.length() < 8) {
-            throw new RuntimeException("Password must be at least 8 characters");
+            throw new ValidationException("Password must be at least 8 characters");
         }
         if (!password.matches(".*\\d.*")) {
-            throw new RuntimeException("Password must contain at least one number");
+            throw new ValidationException("Password must contain at least one number");
         }
         if (!password.matches(".*[@$!%*?&].*")) {
-            throw new RuntimeException("Password must contain at least one special character");
+            throw new ValidationException("Password must contain at least one special character");
         }
         if (!password.matches(".*[a-z].*")) {
-            throw new RuntimeException("Password must contain at least one lowercase letter");
+            throw new ValidationException("Password must contain at least one lowercase letter");
         }
         if (!password.matches(".*[A-Z].*")) {
-            throw new RuntimeException("Password must contain at least one uppercase letter");
+            throw new ValidationException("Password must contain at least one uppercase letter");
         }
-    }
-
-    private UserDTO toUserDTO(User user) {
-        return new UserDTO(
-            user.id,
-            user.email,
-            user.firstName,
-            user.lastName,
-            user.role
-        );
     }
 }

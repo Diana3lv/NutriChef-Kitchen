@@ -44,3 +44,6 @@ application-prod.properties
 /.quarkus/cli/plugins/
 # TLS Certificates
 .certs/
+
+# JWT Keys
+*.pem

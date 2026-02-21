@@ -1,6 +1,6 @@
-package org.dsoft.dto;
+package org.dsoft.entity.dto;
 
-import org.dsoft.entity.UserRole;
+import org.dsoft.entity.model.UserRole;
 
 public record UserDTO(
     Long id,

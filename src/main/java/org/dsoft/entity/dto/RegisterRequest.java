@@ -1,4 +1,4 @@
-package org.dsoft.dto;
+package org.dsoft.entity.dto;
 
 public record RegisterRequest(
     String email,

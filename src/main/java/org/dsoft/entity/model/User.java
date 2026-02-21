@@ -1,7 +1,8 @@
-package org.dsoft.entity;
+package org.dsoft.entity.model;
 
 import jakarta.persistence.*;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import org.dsoft.entity.dto.UserDTO;
 import java.time.LocalDateTime;
 
 @Entity
@@ -52,5 +53,15 @@ public class User extends PanacheEntity {
 
     public static boolean existsByEmail(String email) {
         return find("email", email).count() > 0;
+    }
+
+    public UserDTO toUserDTO() {
+        return new UserDTO(
+            this.id,
+            this.email,
+            this.firstName,
+            this.lastName,
+            this.role
+        );
     }
 }
