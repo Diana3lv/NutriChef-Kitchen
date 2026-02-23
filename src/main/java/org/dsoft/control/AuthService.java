@@ -80,7 +80,7 @@ public class AuthService {
         if (!password.matches(".*\\d.*")) {
             throw new ValidationException("Password must contain at least one number");
         }
-        if (!password.matches(".*[@$!%*?&].*")) {
+        if (!password.matches(".*[@$#!%*?&].*")) {
             throw new ValidationException("Password must contain at least one special character");
         }
         if (!password.matches(".*[a-z].*")) {
