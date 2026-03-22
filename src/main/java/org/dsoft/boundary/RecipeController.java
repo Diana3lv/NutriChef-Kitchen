@@ -1,5 +1,6 @@
 package org.dsoft.boundary;
 
+import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DELETE;
@@ -17,6 +18,7 @@ import org.dsoft.control.RecipeService;
 import org.dsoft.entity.model.Recipe;
 
 @Path("/recipes")
+@RequestScoped
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class RecipeController {
