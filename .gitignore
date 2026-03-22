@@ -46,4 +46,4 @@ application-prod.properties
 .certs/
 
 # JWT Keys
-*.pem
+*.pem\n# SQL import files for development\nimport.sql
