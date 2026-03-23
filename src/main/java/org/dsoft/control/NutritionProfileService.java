@@ -7,6 +7,7 @@ import org.dsoft.entity.model.NutritionProfile;
 import org.dsoft.entity.model.User;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.NotFoundException;
@@ -18,6 +19,9 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class NutritionProfileService {
+
+    @Inject
+    HealthConditionParser healthConditionParser;
 
     public Optional<NutritionProfile> findByUser(User user) {
         return NutritionProfile.find("user", user).firstResultOptional();
@@ -36,6 +40,7 @@ public class NutritionProfileService {
         dto.setAllergens(enumListToNames(nutritionProfile.allergens));
         dto.setDietaryPreferences(enumListToNames(nutritionProfile.dietaryPreferences));
         dto.setMedicalConditions(nutritionProfile.medicalConditions);
+        dto.setParsedAvoidIngredients(nutritionProfile.parsedAvoidIngredients);
         
         return dto;
     }
@@ -57,6 +62,14 @@ public class NutritionProfileService {
         nutritionProfile.dietaryPreferences = parseDietaryPreferences(nutritionProfileDTO.getDietaryPreferences());
         nutritionProfile.medicalConditions = nutritionProfileDTO.getMedicalConditions();
 
+        if (nutritionProfileDTO.getMedicalConditions() != null && !nutritionProfileDTO.getMedicalConditions().isBlank()) {
+            var parsedIngredients = healthConditionParser.parseHealthConditions(
+                nutritionProfileDTO.getMedicalConditions(),
+                nutritionProfileDTO.getIntolerances()
+            );
+            nutritionProfile.parsedAvoidIngredients = parsedIngredients;
+        }
+
         nutritionProfile.persist();
     }
 
@@ -68,6 +81,7 @@ public class NutritionProfileService {
         return values.stream().map(Enum::name).toList();
     }
 
+    @SuppressWarnings("null")
     private List<Allergen> parseAllergens(List<String> values) {
         if (values == null) {
             return Collections.emptyList();
@@ -84,6 +98,7 @@ public class NutritionProfileService {
         }
     }
 
+    @SuppressWarnings("null")
     private List<DietaryPreference> parseDietaryPreferences(List<String> values) {
         if (values == null) {
             return Collections.emptyList();
