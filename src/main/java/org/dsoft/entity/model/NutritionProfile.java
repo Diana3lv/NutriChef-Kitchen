@@ -3,9 +3,18 @@ package org.dsoft.entity.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.*;
 import java.util.List;
+import java.util.Set;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Table(name = "nutrition_profiles")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class NutritionProfile extends PanacheEntity {
 
     @OneToOne
@@ -26,4 +35,10 @@ public class NutritionProfile extends PanacheEntity {
 
     @Column(columnDefinition = "TEXT")
     public String medicalConditions;
+
+    // Cached AI parsing
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "nutrition_profile_avoid_ingredients", joinColumns = @JoinColumn(name = "nutrition_profile_id"))
+    @Column(name = "ingredient")
+    public Set<String> parsedAvoidIngredients;
 }

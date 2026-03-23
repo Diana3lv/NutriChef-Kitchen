@@ -15,11 +15,17 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
 @Table(name = "recipes")
+@Getter
+@Setter
 public class Recipe extends PanacheEntityBase {
 
     @Id
@@ -66,22 +72,26 @@ public class Recipe extends PanacheEntityBase {
     @ElementCollection(fetch = FetchType.EAGER)
     public List<Ingredient> ingredients = new ArrayList<>();
 
+    @ElementCollection(targetClass = Allergen.class, fetch = FetchType.EAGER)
+    @Enumerated(EnumType.STRING)
+    public List<Allergen> allergens = new ArrayList<>();
+
+    @ElementCollection(targetClass = DietaryPreference.class, fetch = FetchType.EAGER)
+    @Enumerated(EnumType.STRING)
+    public List<DietaryPreference> dietaryPreferences = new ArrayList<>();
+
     public enum Difficulty {
         EASY, MEDIUM, HARD
     }
 
     @Embeddable
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class Ingredient {
         public String name;
         public String quantity;
         public String unit;
-
-        public Ingredient() {}
-
-        public Ingredient(String name, String quantity, String unit) {
-            this.name = name;
-            this.quantity = quantity;
-            this.unit = unit;
-        }
     }
 }
