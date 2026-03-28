@@ -3,7 +3,6 @@ package org.dsoft.entity.model;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
-import jakarta.persistence.Embeddable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -11,13 +10,14 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import lombok.AllArgsConstructor;
+import java.util.Set;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -69,29 +69,29 @@ public class Recipe extends PanacheEntityBase {
     @Column(name = "updated_at")
     public LocalDateTime updatedAt;
 
-    @ElementCollection(fetch = FetchType.EAGER)
-    public List<Ingredient> ingredients = new ArrayList<>();
-
-    @ElementCollection(targetClass = Allergen.class, fetch = FetchType.EAGER)
-    @Enumerated(EnumType.STRING)
-    public List<Allergen> allergens = new ArrayList<>();
+    @OneToMany(mappedBy = "recipe", fetch = FetchType.EAGER, cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    public List<RecipeIngredient> recipeIngredients = new ArrayList<>();
 
     @ElementCollection(targetClass = DietaryPreference.class, fetch = FetchType.EAGER)
     @Enumerated(EnumType.STRING)
     public List<DietaryPreference> dietaryPreferences = new ArrayList<>();
 
-    public enum Difficulty {
-        EASY, MEDIUM, HARD
+    public List<Allergen> getAllergens() {
+        if (recipeIngredients == null || recipeIngredients.isEmpty()) {
+            return new ArrayList<>();
+        }
+        
+        Set<Allergen> allergenSet = new HashSet<>();
+        for (RecipeIngredient recipeIng : recipeIngredients) {
+            if (recipeIng.ingredient != null && recipeIng.ingredient.allergens != null) {
+                allergenSet.addAll(recipeIng.ingredient.allergens);
+            }
+        }
+        
+        return new ArrayList<>(allergenSet);
     }
 
-    @Embeddable
-    @Getter
-    @Setter
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Ingredient {
-        public String name;
-        public String quantity;
-        public String unit;
+    public enum Difficulty {
+        EASY, MEDIUM, HARD
     }
 }

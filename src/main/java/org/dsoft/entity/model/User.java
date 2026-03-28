@@ -34,6 +34,8 @@ public class User extends PanacheEntity {
     @Column(nullable = false)
     public boolean isActive;
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    public Inventory inventory;
 
     @PrePersist
     protected void onCreate() {
