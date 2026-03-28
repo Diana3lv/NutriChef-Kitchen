@@ -5,6 +5,8 @@ import org.dsoft.entity.model.Allergen;
 import org.dsoft.entity.model.DietaryPreference;
 import org.dsoft.entity.model.NutritionProfile;
 import org.dsoft.entity.model.User;
+import org.dsoft.repository.NutritionProfileRepository;
+import org.dsoft.repository.UserRepository;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -22,19 +24,25 @@ public class NutritionProfileService {
 
     @Inject
     HealthConditionParser healthConditionParser;
+    
+    @Inject
+    NutritionProfileRepository nutritionProfileRepository;
+    
+    @Inject
+    UserRepository userRepository;
 
     public Optional<NutritionProfile> findByUser(User user) {
-        return NutritionProfile.find("user", user).firstResultOptional();
+        return nutritionProfileRepository.findByUser(user);
     }
 
     @Transactional
     public NutritionProfileDTO getNutritionProfileByUserId(Long userId) {
-        User user = User.findById(userId);
-        if (user == null) {
+        Optional<User> user = userRepository.findByIdOptional(userId);
+        if (user.isEmpty()) {
             throw new NotFoundException("User not found");
         }
 
-        NutritionProfile nutritionProfile = findByUser(user).orElse(new NutritionProfile());
+        NutritionProfile nutritionProfile = findByUser(user.get()).orElse(new NutritionProfile());
         
         NutritionProfileDTO dto = new NutritionProfileDTO();
         dto.setAllergens(enumListToNames(nutritionProfile.allergens));
@@ -47,14 +55,14 @@ public class NutritionProfileService {
 
     @Transactional
     public void updateNutritionProfile(Long userId, NutritionProfileDTO nutritionProfileDTO) {
-        User user = User.findById(userId);
-        if (user == null) {
+        Optional<User> user = userRepository.findByIdOptional(userId);
+        if (user.isEmpty()) {
             throw new NotFoundException("User not found");
         }
 
-        NutritionProfile nutritionProfile = findByUser(user).orElseGet(() -> {
+        NutritionProfile nutritionProfile = findByUser(user.get()).orElseGet(() -> {
             NutritionProfile newProfile = new NutritionProfile();
-            newProfile.user = user;
+            newProfile.user = user.get();
             return newProfile;
         });
 
@@ -70,7 +78,7 @@ public class NutritionProfileService {
             nutritionProfile.parsedAvoidIngredients = parsedIngredients;
         }
 
-        nutritionProfile.persist();
+        nutritionProfileRepository.persist(nutritionProfile);
     }
 
     private List<String> enumListToNames(List<? extends Enum<?>> values) {

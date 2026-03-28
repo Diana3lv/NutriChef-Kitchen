@@ -3,61 +3,92 @@ package org.dsoft.control;
 import java.util.HashSet;
 import java.util.Set;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.dsoft.client.GroqClient;
 
 @ApplicationScoped
 public class HealthConditionParser {
+    
+    private static final Logger logger = LoggerFactory.getLogger(HealthConditionParser.class);
+    
+    @Inject
+    GroqClient groqClient;
+    
+    private static final HealthConditionParserRuleBased ruleBased = new HealthConditionParserRuleBased();
 
-    public Set<String> parseHealthConditions(String healthConditions, String intolerances) {
-        Set<String> avoidIngredients = new HashSet<>();
+    public Set<String> parseHealthConditions(String medicalConditions, String intolerances) {
+        if ((medicalConditions == null || medicalConditions.isBlank()) && 
+            (intolerances == null || intolerances.isBlank())) {
+            return new HashSet<>();
+        }
         
-        String combinedInput = (healthConditions != null ? healthConditions : "") + " " +
-                              (intolerances != null ? intolerances : "");
-        String lowerInput = combinedInput.toLowerCase();
-
-        // Dairy-related
-        if (lowerInput.contains("lactose") || lowerInput.contains("dairy allergy")) {
-            avoidIngredients.addAll(Set.of("milk", "cheese", "butter", "cream", "yogurt", "whey"));
+        try {
+            // Try LLM-based parsing
+            return parseWithLLM(medicalConditions, intolerances);
+        } catch (Exception e) {
+            logger.warn("LLM parsing failed, falling back to rule-based parser: {}", e.getMessage());
+            // Fallback to rule-based parsing
+            return ruleBased.parseHealthConditions(medicalConditions, intolerances);
         }
-
-        // Gluten-related
-        if (lowerInput.contains("celiac") || lowerInput.contains("gluten")) {
-            avoidIngredients.addAll(Set.of("gluten", "wheat", "barley", "rye", "flour", "bread"));
+    }
+    
+    private Set<String> parseWithLLM(String medicalConditions, String intolerances) {
+        if (groqClient == null) {
+            logger.warn("OllamaClient not available, using rule-based parser");
+            return ruleBased.parseHealthConditions(medicalConditions, intolerances);
         }
-
-        // Nut allergies
-        if (lowerInput.contains("peanut")) {
-            avoidIngredients.addAll(Set.of("peanuts", "peanut oil", "peanut butter"));
+        
+        String prompt = buildPrompt(medicalConditions, intolerances);
+        String response = groqClient.generateResponse(prompt);
+        
+        if (response == null || response.isBlank()) {
+            logger.warn("Empty response from LLM, falling back to rule-based");
+            return ruleBased.parseHealthConditions(medicalConditions, intolerances);
         }
-        if (lowerInput.contains("tree nut") || lowerInput.contains("almond") || 
-            lowerInput.contains("walnut") || lowerInput.contains("cashew")) {
-            avoidIngredients.addAll(Set.of("nuts", "almond", "walnut", "cashew", "hazelnut", "pecan"));
+        
+        return extractIngredientsFromResponse(response);
+    }
+    
+    private String buildPrompt(String medicalConditions, String intolerances) {
+        return """
+            You are a nutritionist expert. Given the following health conditions and food intolerances, \
+            provide ONLY a comma-separated list of specific ingredients to avoid. \
+            No explanations, no extra text, just the ingredients list.
+            
+            Medical Conditions: %s
+            Food Intolerances: %s
+            
+            Respond with ONLY a comma-separated list of ingredients to avoid. For example: \
+            milk, cheese, butter, gluten, wheat, sugar
+            """.formatted(
+                medicalConditions != null && !medicalConditions.isBlank() ? medicalConditions : "none",
+                intolerances != null && !intolerances.isBlank() ? intolerances : "none"
+            );
+    }
+    
+    private Set<String> extractIngredientsFromResponse(String response) {
+        Set<String> ingredients = new HashSet<>();
+        if (response == null || response.isBlank()) {
+            return ingredients;
         }
-
-        // Shellfish allergies
-        if (lowerInput.contains("shellfish") || lowerInput.contains("seafood")) {
-            avoidIngredients.addAll(Set.of("shrimp", "crab", "lobster", "oyster", "mussels", "scallops"));
+        
+        String[] items = response.split("[,;\\n]");
+        for (String item : items) {
+            String cleaned = item.trim().toLowerCase();
+            cleaned = cleaned.replaceAll("^(the|a|and|or)\\s+", "")
+                              .replaceAll("\\s*(is|are|or|and)\\s*", " ")
+                              .trim();
+            
+            if (!cleaned.isEmpty() && 
+                !cleaned.contains("example") && 
+                !cleaned.contains("list") &&
+                !cleaned.contains("avoid") &&
+                cleaned.length() > 1) {
+                ingredients.add(cleaned);
+            }
         }
-
-        // Egg allergy
-        if (lowerInput.contains("egg allergy") || lowerInput.contains("egg intolerance")) {
-            avoidIngredients.addAll(Set.of("eggs", "egg", "mayonnaise"));
-        }
-
-        // Soy allergy
-        if (lowerInput.contains("soy")) {
-            avoidIngredients.addAll(Set.of("soy", "tofu", "soy sauce", "soy milk"));
-        }
-
-        // Diabetes
-        if (lowerInput.contains("diabetic") || lowerInput.contains("diabetes")) {
-            avoidIngredients.addAll(Set.of("sugar", "honey", "maple syrup", "corn syrup"));
-        }
-
-        // High blood pressure
-        if (lowerInput.contains("hypertension") || lowerInput.contains("high blood pressure")) {
-            avoidIngredients.addAll(Set.of("salt", "sodium"));
-        }
-
-        return avoidIngredients;
+        return ingredients;
     }
 }
