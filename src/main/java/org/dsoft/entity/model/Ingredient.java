@@ -1,12 +1,14 @@
 package org.dsoft.entity.model;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,4 +34,7 @@ public class Ingredient extends PanacheEntity {
     @ElementCollection(targetClass = Allergen.class, fetch = FetchType.EAGER)
     @Enumerated(EnumType.STRING)
     public List<Allergen> allergens = new ArrayList<>();
+
+    @OneToMany(mappedBy = "originalIngredient", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    public List<IngredientSubstitution> substitutions = new ArrayList<>();
 }

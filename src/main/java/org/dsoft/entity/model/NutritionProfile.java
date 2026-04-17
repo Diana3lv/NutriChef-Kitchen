@@ -36,6 +36,9 @@ public class NutritionProfile extends PanacheEntity {
     @Column(columnDefinition = "TEXT")
     public String medicalConditions;
 
+    @Column(columnDefinition = "TEXT")
+    public String intolerances;
+
     // Cached AI parsing
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "nutrition_profile_avoid_ingredients", joinColumns = @JoinColumn(name = "nutrition_profile_id"))
