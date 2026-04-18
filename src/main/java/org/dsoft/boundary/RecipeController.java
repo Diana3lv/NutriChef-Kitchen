@@ -1,5 +1,6 @@
 package org.dsoft.boundary;
 
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -11,8 +12,10 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.SecurityContext;
 import java.util.List;
 import org.dsoft.control.RecipeService;
 import org.dsoft.entity.model.Recipe;
@@ -32,13 +35,18 @@ public class RecipeController {
     }
 
     @GET
+    @Path("/personalized")
+    @RolesAllowed({"USER", "ADMIN"})
+    public List<Recipe> getPersonalizedRecipes(@Context SecurityContext securityContext) {
+        Long userId = Long.parseLong(securityContext.getUserPrincipal().getName());
+        return recipeService.getRecipesForUserNutritionProfile(userId);
+    }
+
+    @GET
     @Path("/{id}")
     public Recipe getById(@PathParam("id") Long id) {
-        Recipe recipe = recipeService.getById(id);
-        if (recipe == null) {
-            throw new NotFoundException("Recipe not found");
-        }
-        return recipe;
+        return recipeService.getById(id)
+                .orElseThrow(() -> new NotFoundException("Recipe not found"));
     }
 
     @POST
@@ -50,11 +58,9 @@ public class RecipeController {
     @PUT
     @Path("/{id}")
     public Response update(@PathParam("id") Long id, Recipe recipe) {
-        Recipe updated = recipeService.update(id, recipe);
-        if (updated == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.ok(updated).build();
+        return recipeService.update(id, recipe)
+                .map(updated -> Response.ok(updated).build())
+                .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 
     @DELETE
