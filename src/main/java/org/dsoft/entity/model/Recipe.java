@@ -1,5 +1,6 @@
 package org.dsoft.entity.model;
 
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -70,6 +71,7 @@ public class Recipe extends PanacheEntityBase {
     public LocalDateTime updatedAt;
 
     @OneToMany(mappedBy = "recipe", fetch = FetchType.EAGER, cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference("recipe-ingredients")
     public List<RecipeIngredient> recipeIngredients = new ArrayList<>();
 
     @ElementCollection(targetClass = DietaryPreference.class, fetch = FetchType.EAGER)

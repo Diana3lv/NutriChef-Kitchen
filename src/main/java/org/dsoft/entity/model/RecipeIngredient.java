@@ -1,5 +1,6 @@
 package org.dsoft.entity.model;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -22,6 +23,7 @@ public class RecipeIngredient extends PanacheEntity {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "recipe_id", nullable = false)
+    @JsonBackReference("recipe-ingredients")
     public Recipe recipe;
 
     @ManyToOne(fetch = FetchType.EAGER)
