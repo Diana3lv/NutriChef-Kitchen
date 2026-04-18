@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.dsoft.entity.dto.IngredientDTO;
+import org.dsoft.entity.dto.SubstitutionDTO;
 import org.dsoft.entity.model.Allergen;
 import org.dsoft.entity.model.Ingredient;
 import org.dsoft.entity.model.IngredientSubstitution;
@@ -138,5 +139,22 @@ public class IngredientService {
     @Transactional
     public boolean delete(Long id) {
         return ingredientRepository.deleteById(id);
+    }
+
+    public List<SubstitutionDTO> getSubstitutions(String ingredientName) {
+        try {
+            List<IngredientDTO> substitutionDTOs = substitutionLLMService.findSubstitutions(ingredientName);
+            return substitutionDTOs.stream()
+                    .map(dto -> new SubstitutionDTO(
+                            dto.getName(),
+                            dto.getUnit(),
+                            dto.getAllergens(),
+                            dto.getRatio()
+                    ))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("Failed to get substitutions for ingredient '{}': {}", ingredientName, e.getMessage());
+            return new ArrayList<>();
+        }
     }
 }

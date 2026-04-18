@@ -17,6 +17,7 @@ import java.util.List;
 import org.dsoft.control.IngredientService;
 import org.dsoft.control.SubstitutionLLMService;
 import org.dsoft.entity.dto.IngredientDTO;
+import org.dsoft.entity.dto.SubstitutionDTO;
 import org.dsoft.entity.model.Ingredient;
 
 @Path("/api/ingredients")
@@ -77,6 +78,19 @@ public class IngredientController {
             return Response.noContent().build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
+    }
+
+    @GET
+    @Path("/{id}/substitutions")
+    public Response getSubstitutions(@PathParam("id") Long id) {
+        return ingredientService.getById(id)
+                .map(ingredient -> {
+                    List<SubstitutionDTO> substitutions = ingredientService.getSubstitutions(ingredient.name);
+                    return Response.ok(substitutions).build();
+                })
+                .orElse(Response.status(Response.Status.NOT_FOUND)
+                        .entity("Ingredient not found")
+                        .build());
     }
 
     //to-do: this is just for testing, should be deleted
