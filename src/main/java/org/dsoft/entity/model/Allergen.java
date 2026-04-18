@@ -12,5 +12,8 @@ public enum Allergen {
     GLUTEN,
     SESAME,
     MUSTARD,
-    SULFITES
+    SULFITES,
+    CELERY,
+    LUPIN,
+    MOLLUSKS
 }

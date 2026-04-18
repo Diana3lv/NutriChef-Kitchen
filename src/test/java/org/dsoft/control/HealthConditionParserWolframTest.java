@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.dsoft.control.parser.HealthConditionParser;
 
 @QuarkusTest
 public class HealthConditionParserWolframTest {

@@ -2,6 +2,7 @@ package org.dsoft.client;
 
 import org.dsoft.entity.dto.GroqRequestDTO;
 import org.dsoft.entity.dto.GroqResponseDTO;
+import org.dsoft.entity.model.Ingredient;
 import org.dsoft.entity.dto.GroqMessageDTO;
 
 import jakarta.enterprise.context.ApplicationScoped;

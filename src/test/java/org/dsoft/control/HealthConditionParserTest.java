@@ -6,6 +6,7 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.dsoft.control.parser.HealthConditionParser;
 
 @DisplayName("HealthConditionParser Tests")
 class HealthConditionParserTest {

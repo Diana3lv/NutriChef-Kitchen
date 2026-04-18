@@ -2,19 +2,18 @@ package org.dsoft.boundary;
 
 import org.dsoft.control.NutritionProfileService;
 import org.dsoft.entity.dto.NutritionProfileDTO;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
-import jakarta.ws.rs.NotAuthorizedException;
 import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.SecurityContext;
 
 @Path("/api/users/nutrition-profile-settings")
 @RequestScoped
@@ -25,34 +24,17 @@ public class NutritionProfileController {
     @Inject
     NutritionProfileService nutritionProfileService;
 
-    @Inject
-    JsonWebToken jwt;
-
     @GET
     @RolesAllowed({"USER", "ADMIN"})
-    public NutritionProfileDTO getProfileSettings() {
-        Long userId = getCurrentUserId();
+    public NutritionProfileDTO getProfileSettings(@Context SecurityContext securityContext) {
+        Long userId = Long.parseLong(securityContext.getUserPrincipal().getName());
         return nutritionProfileService.getNutritionProfileByUserId(userId);
     }
 
     @PUT
     @RolesAllowed({"USER", "ADMIN"})
-    public NutritionProfileDTO updateProfileSettings(NutritionProfileDTO request) {
-        Long userId = getCurrentUserId();
-        nutritionProfileService.updateNutritionProfile(userId, request);
-        return nutritionProfileService.getNutritionProfileByUserId(userId);
-    }
-
-    private Long getCurrentUserId() {
-        String subject = jwt.getSubject();
-        if (subject == null || subject.isBlank()) {
-            throw new NotAuthorizedException("Missing JWT subject");
-        }
-
-        try {
-            return Long.valueOf(subject);
-        } catch (NumberFormatException ex) {
-            throw new BadRequestException("Invalid JWT subject format");
-        }
+    public NutritionProfileDTO updateProfileSettings(@Context SecurityContext securityContext, NutritionProfileDTO request) {
+        Long userId = Long.parseLong(securityContext.getUserPrincipal().getName());
+        return nutritionProfileService.updateNutritionProfile(userId, request);
     }
 }

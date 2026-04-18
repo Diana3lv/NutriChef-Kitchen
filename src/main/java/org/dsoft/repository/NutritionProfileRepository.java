@@ -12,4 +12,8 @@ public class NutritionProfileRepository implements PanacheRepository<NutritionPr
     public Optional<NutritionProfile> findByUser(User user) {
         return find("user", user).firstResultOptional();
     }
+
+    public Optional<NutritionProfile> findByUserId(Long userId) {
+        return find("user.id", userId).firstResultOptional();
+    }
 }

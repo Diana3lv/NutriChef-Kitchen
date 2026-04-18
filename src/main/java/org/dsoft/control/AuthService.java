@@ -2,6 +2,7 @@ package org.dsoft.control;
 
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import org.dsoft.entity.dto.AuthResponse;
@@ -24,6 +25,9 @@ import java.util.Set;
 @ApplicationScoped
 public class AuthService {
 
+    @Inject
+    UserService userService;
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
         if (User.existsByEmail(request.email())) {
@@ -40,7 +44,7 @@ public class AuthService {
         user.role = UserRole.USER;
         user.isActive = true;
         
-        user.persist();
+        userService.createUser(user);
         
         String token = generateToken(user);
         UserDTO userDTO = user.toUserDTO();
@@ -48,11 +52,8 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        User user = User.findByEmail(request.email());
-        
-        if (user == null) {
-            throw new AuthenticationException("Invalid credentials");
-        }
+        User user = userService.findUserByEmail(request.email())
+            .orElseThrow(() -> new AuthenticationException("Invalid credentials"));
 
         if (!BCrypt.checkpw(request.password(), user.password)) {
             throw new AuthenticationException("Invalid credentials");

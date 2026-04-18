@@ -59,7 +59,6 @@ public class User extends PanacheEntity {
 
     public UserDTO toUserDTO() {
         return new UserDTO(
-            this.id,
             this.email,
             this.firstName,
             this.lastName,
