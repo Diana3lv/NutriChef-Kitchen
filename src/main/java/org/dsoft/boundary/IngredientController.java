@@ -15,6 +15,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import org.dsoft.control.IngredientService;
+import org.dsoft.control.SubstitutionLLMService;
+import org.dsoft.entity.dto.IngredientDTO;
 import org.dsoft.entity.model.Ingredient;
 
 @Path("/api/ingredients")
@@ -26,6 +28,9 @@ public class IngredientController {
     @Inject
     IngredientService ingredientService;
 
+    @Inject
+    SubstitutionLLMService substitutionLLMService;
+
     @GET
     public List<Ingredient> getAll() {
         return ingredientService.getAll();
@@ -34,11 +39,8 @@ public class IngredientController {
     @GET
     @Path("/{id}")
     public Ingredient getById(@PathParam("id") Long id) {
-        Ingredient ingredient = ingredientService.getById(id);
-        if (ingredient == null) {
-            throw new NotFoundException("Ingredient not found");
-        }
-        return ingredient;
+        return ingredientService.getById(id)
+                .orElseThrow(() -> new NotFoundException("Ingredient not found"));
     }
 
     @POST
@@ -62,11 +64,9 @@ public class IngredientController {
     @PUT
     @Path("/{id}")
     public Response update(@PathParam("id") Long id, Ingredient ingredient) {
-        Ingredient updated = ingredientService.update(id, ingredient);
-        if (updated == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        return Response.ok(updated).build();
+        return ingredientService.update(id, ingredient)
+                .map(updated -> Response.ok(updated).build())
+                .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 
     @DELETE
@@ -77,5 +77,19 @@ public class IngredientController {
             return Response.noContent().build();
         }
         return Response.status(Response.Status.NOT_FOUND).build();
+    }
+
+    //to-do: this is just for testing, should be deleted
+    @POST
+    @Path("/test-substitutions")
+    public Response testSubstitutions(IngredientDTO ingredientDTO) {
+        if (ingredientDTO.getName() == null || ingredientDTO.getName().isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("Ingredient name is required")
+                    .build();
+        }
+
+        List<IngredientDTO> substitutions = substitutionLLMService.findSubstitutions(ingredientDTO.getName());
+        return Response.ok(substitutions).build();
     }
 }
