@@ -1,5 +1,6 @@
 package org.dsoft.boundary;
 
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.Consumes;
@@ -14,11 +15,19 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.dsoft.control.IngredientService;
 import org.dsoft.control.SubstitutionLLMService;
 import org.dsoft.entity.dto.IngredientDTO;
+import org.dsoft.entity.dto.IngredientWithSubstitutionsDTO;
+import org.dsoft.entity.dto.SubstitutionAlternativeInputDTO;
+import org.dsoft.entity.dto.SubstitutionAlternativeResponseDTO;
 import org.dsoft.entity.dto.SubstitutionDTO;
+import org.dsoft.entity.dto.SubstitutionOptionResponseDTO;
+import org.dsoft.entity.dto.AddSubstitutionRequestDTO;
 import org.dsoft.entity.model.Ingredient;
+import org.dsoft.entity.model.SubstitutionAlternative;
+import org.dsoft.entity.model.SubstitutionOption;
 
 @Path("/api/ingredients")
 @RequestScoped
@@ -33,18 +42,71 @@ public class IngredientController {
     SubstitutionLLMService substitutionLLMService;
 
     @GET
-    public List<Ingredient> getAll() {
-        return ingredientService.getAll();
+    public List<IngredientWithSubstitutionsDTO> getAll() {
+        return ingredientService.getAll().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
     }
 
     @GET
     @Path("/{id}")
-    public Ingredient getById(@PathParam("id") Long id) {
+    public IngredientWithSubstitutionsDTO getById(@PathParam("id") Long id) {
         return ingredientService.getById(id)
+                .map(this::convertToDTO)
                 .orElseThrow(() -> new NotFoundException("Ingredient not found"));
     }
 
+    @GET
+    @Path("/simple")
+    public List<org.dsoft.entity.dto.SimpleIngredientDTO> getSimple() {
+        return ingredientService.getAll().stream()
+                .map(i -> new org.dsoft.entity.dto.SimpleIngredientDTO(i.id, i.name, i.unit, i.allergens))
+                .collect(Collectors.toList());
+    }
+
+    private IngredientWithSubstitutionsDTO convertToDTO(Ingredient ingredient) {
+        List<SubstitutionOptionResponseDTO> substitutionDTOs = ingredient.substitutions.stream()
+                .map(this::convertSubstitutionOptionToDTO)
+                .collect(Collectors.toList());
+
+        IngredientWithSubstitutionsDTO dto = new IngredientWithSubstitutionsDTO(
+                ingredient.id,
+                ingredient.name,
+                ingredient.unit,
+                ingredient.allergens,
+                substitutionDTOs
+        );
+        dto.setCategory(ingredient.category);
+        dto.setFoodGroup(ingredient.foodGroup);
+        return dto;
+    }
+
+    private SubstitutionOptionResponseDTO convertSubstitutionOptionToDTO(SubstitutionOption option) {
+        List<SubstitutionAlternativeResponseDTO> alternatives = option.alternatives.stream()
+                .map(this::convertSubstitutionAlternativeToDTO)
+                .collect(Collectors.toList());
+
+        return new SubstitutionOptionResponseDTO(
+                option.id,
+                alternatives
+        );
+    }
+
+    private SubstitutionAlternativeResponseDTO convertSubstitutionAlternativeToDTO(SubstitutionAlternative alternative) {
+        Ingredient altIngredient = alternative.alternativeIngredient;
+        return new SubstitutionAlternativeResponseDTO(
+                altIngredient.id,
+                altIngredient.name,
+                altIngredient.unit,
+                altIngredient.allergens,
+                alternative.ratio,
+                alternative.description,
+                List.of()
+        );
+    }
+
     @POST
+    @RolesAllowed("ADMIN")
     public Response create(Ingredient ingredient) {
         if (ingredient.name == null || ingredient.name.isBlank()) {
             return Response.status(Response.Status.BAD_REQUEST)
@@ -59,11 +121,12 @@ public class IngredientController {
         }
         
         Ingredient created = ingredientService.create(ingredient);
-        return Response.status(Response.Status.CREATED).entity(created).build();
+        return Response.status(Response.Status.CREATED).entity(convertToDTO(created)).build();
     }
 
     @PUT
     @Path("/{id}")
+    @RolesAllowed("ADMIN")
     public Response update(@PathParam("id") Long id, Ingredient ingredient) {
         return ingredientService.update(id, ingredient)
                 .map(updated -> Response.ok(updated).build())
@@ -72,6 +135,7 @@ public class IngredientController {
 
     @DELETE
     @Path("/{id}")
+    @RolesAllowed("ADMIN")
     public Response delete(@PathParam("id") Long id) {
         boolean deleted = ingredientService.delete(id);
         if (deleted) {
@@ -90,6 +154,33 @@ public class IngredientController {
                 })
                 .orElse(Response.status(Response.Status.NOT_FOUND)
                         .entity("Ingredient not found")
+                        .build());
+    }
+
+    @POST
+    @Path("/{id}/substitutions")
+    @RolesAllowed("ADMIN")
+    public Response addSubstitutionOption(@PathParam("id") Long id, AddSubstitutionRequestDTO request) {
+        if (request == null || request.getAlternatives() == null || request.getAlternatives().isEmpty()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity("At least one alternative ingredient is required")
+                    .build();
+        }
+        return ingredientService.addSubstitutionOption(id, request.getAlternatives())
+                .map(dto -> Response.status(Response.Status.CREATED).entity(dto).build())
+                .orElse(Response.status(Response.Status.NOT_FOUND)
+                        .entity("Ingredient not found")
+                        .build());
+    }
+
+    @DELETE
+    @Path("/{id}/substitutions/{substitutionId}")
+    @RolesAllowed("ADMIN")
+    public Response deleteSubstitutionOption(@PathParam("id") Long ingredientId, @PathParam("substitutionId") Long substitutionId) {
+        return ingredientService.deleteSubstitutionOption(ingredientId, substitutionId)
+                .map(dto -> Response.ok(dto).build())
+                .orElse(Response.status(Response.Status.NOT_FOUND)
+                        .entity("Ingredient or substitution not found")
                         .build());
     }
 

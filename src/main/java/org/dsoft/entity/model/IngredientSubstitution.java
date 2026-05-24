@@ -17,6 +17,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "ingredient_substitutions")
@@ -26,6 +27,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class IngredientSubstitution extends PanacheEntity {
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "original_ingredient_id", nullable = false)
     public Ingredient originalIngredient;

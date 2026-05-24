@@ -8,10 +8,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.dsoft.entity.dto.IngredientDTO;
+import org.dsoft.entity.dto.IngredientWithSubstitutionsDTO;
+import org.dsoft.entity.dto.SubstitutionAlternativeInputDTO;
+import org.dsoft.entity.dto.SubstitutionAlternativeResponseDTO;
 import org.dsoft.entity.dto.SubstitutionDTO;
+import org.dsoft.entity.dto.SubstitutionOptionResponseDTO;
 import org.dsoft.entity.model.Allergen;
 import org.dsoft.entity.model.Ingredient;
-import org.dsoft.entity.model.IngredientSubstitution;
+import org.dsoft.entity.model.SubstitutionAlternative;
+import org.dsoft.entity.model.SubstitutionOption;
 import org.dsoft.repository.IngredientRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,49 +47,81 @@ public class IngredientService {
     @Transactional
     public Ingredient create(Ingredient ingredient) {
         ingredientRepository.persist(ingredient);
-        populateSubstitutionsForIngredient(ingredient);
+        
+        // Populate substitutions after persisting the ingredient
+        if (ingredient != null && ingredient.name != null && !ingredient.name.isBlank()) {
+            try {
+                List<IngredientDTO> substitutionDTOs = substitutionLLMService.findSubstitutions(ingredient.name);
+                List<SubstitutionOption> substitutions = convertDTOsToSubstitutionOptions(ingredient, substitutionDTOs);
+                // Add to list instead of reassigning to avoid orphan deletion issues
+                ingredient.substitutions.addAll(substitutions);
+                logger.info("Populated {} substitutions for ingredient '{}'", substitutions.size(), ingredient.name);
+            } catch (Exception e) {
+                logger.warn("Failed to populate substitutions for ingredient '{}': {}", ingredient.name, e.getMessage());
+            }
+        }
+        
         return ingredient;
     }
 
-    private void populateSubstitutionsForIngredient(Ingredient ingredient) {
-        if (ingredient == null || ingredient.name == null || ingredient.name.isBlank()) {
-            return;
-        }
-
-        try {
-            List<IngredientDTO> substitutionDTOs = substitutionLLMService.findSubstitutions(ingredient.name);
-            List<IngredientSubstitution> substitutions = convertDTOsToSubstitutions(ingredient, substitutionDTOs);
-            ingredient.substitutions = substitutions;
-            logger.info("Populated {} substitutions for ingredient '{}'", substitutions.size(), ingredient.name);
-        } catch (Exception e) {
-            logger.warn("Failed to populate substitutions for ingredient '{}': {}", ingredient.name, e.getMessage());
-        }
-    }
-
-    private List<IngredientSubstitution> convertDTOsToSubstitutions(Ingredient original, List<IngredientDTO> dtos) {
-        List<IngredientSubstitution> substitutions = new ArrayList<>();
+    private List<SubstitutionOption> convertDTOsToSubstitutionOptions(Ingredient original, List<IngredientDTO> dtos) {
+        List<SubstitutionOption> substitutions = new ArrayList<>();
 
         for (IngredientDTO dto : dtos) {
             List<String> validatedAllergens = validateAndEnrichAllergens(dto.getAllergens());
             
             Ingredient substitutionIngredient = ingredientRepository.findByName(dto.getName())
                 .orElseGet(() -> {
-                    Ingredient newIng = new Ingredient();
-                    newIng.name = dto.getName();
-                    newIng.unit = dto.getUnit();
-                    newIng.allergens = convertAllergenStringsToEnum(validatedAllergens);
-                    ingredientRepository.persist(newIng);
-                    return newIng;
+                    try {
+                        Ingredient newIng = new Ingredient();
+                        newIng.name = dto.getName();
+                        newIng.unit = dto.getUnit();
+                        newIng.allergens = convertAllergenStringsToEnum(validatedAllergens);
+                        ingredientRepository.persist(newIng);
+                        return newIng;
+                    } catch (Exception e) {
+                        logger.warn("Could not create ingredient '{}': {}", dto.getName(), e.getMessage());
+                        return ingredientRepository.findByName(dto.getName()).orElse(null);
+                    }
                 });
 
-            IngredientSubstitution sub = new IngredientSubstitution();
-            sub.originalIngredient = original;
-            sub.originalQuantity = 1.0;
-            sub.originalUnit = original.unit;
-            sub.ingredients.add(substitutionIngredient);
-            sub.ratios.add(dto.getRatio() != null ? dto.getRatio() : "1:1");
-            sub.persist();
-            substitutions.add(sub);
+            if (substitutionIngredient == null) {
+                continue;
+            }
+
+            // Forward: original → substitutionIngredient
+            SubstitutionOption option = new SubstitutionOption();
+            option.ingredient = original;
+            
+            SubstitutionAlternative alternative = new SubstitutionAlternative();
+            alternative.substitutionOption = option;
+            alternative.alternativeIngredient = substitutionIngredient;
+            alternative.ratio = 1.0; // Default ratio
+            alternative.description = null;
+            
+            option.alternatives.add(alternative);
+            option.persist();
+            substitutions.add(option);
+
+            // Reverse: substitutionIngredient → original (only if not already present)
+            boolean reverseExists = substitutionIngredient.substitutions.stream()
+                .anyMatch(so -> so.alternatives.stream()
+                    .anyMatch(a -> a.alternativeIngredient != null && a.alternativeIngredient.id.equals(original.id)));
+            if (!reverseExists) {
+                SubstitutionOption reverseOption = new SubstitutionOption();
+                reverseOption.ingredient = substitutionIngredient;
+
+                SubstitutionAlternative reverseAlt = new SubstitutionAlternative();
+                reverseAlt.substitutionOption = reverseOption;
+                reverseAlt.alternativeIngredient = original;
+                reverseAlt.ratio = 1.0;
+                reverseAlt.description = null;
+
+                reverseOption.alternatives.add(reverseAlt);
+                reverseOption.persist();
+                substitutionIngredient.substitutions.add(reverseOption);
+                logger.info("Created reverse substitution: '{}' → '{}'", substitutionIngredient.name, original.name);
+            }
         }
 
         return substitutions;
@@ -139,6 +176,86 @@ public class IngredientService {
     @Transactional
     public boolean delete(Long id) {
         return ingredientRepository.deleteById(id);
+    }
+
+    @Transactional
+    public Optional<IngredientWithSubstitutionsDTO> addSubstitutionOption(Long ingredientId, List<SubstitutionAlternativeInputDTO> alternatives) {
+        return ingredientRepository.findByIdOptional(ingredientId).map(ingredient -> {
+            SubstitutionOption option = new SubstitutionOption();
+            option.ingredient = ingredient;
+
+            for (SubstitutionAlternativeInputDTO altInput : alternatives) {
+                Ingredient altIngredient = ingredientRepository.findByIdOptional(altInput.getAlternativeIngredientId()).orElse(null);
+                if (altIngredient != null) {
+                    SubstitutionAlternative alternative = new SubstitutionAlternative();
+                    alternative.substitutionOption = option;
+                    alternative.alternativeIngredient = altIngredient;
+                    alternative.ratio = altInput.getRatio() != null ? altInput.getRatio() : 1.0;
+                    alternative.description = altInput.getDescription();
+                    
+                    option.alternatives.add(alternative);
+                }
+            }
+
+            option.persist();
+            ingredient.substitutions.add(option);
+
+            // Convert to DTO before returning
+            List<SubstitutionOptionResponseDTO> subDTOs = ingredient.substitutions.stream()
+                    .map(this::convertSubstitutionOptionToDTO)
+                    .collect(Collectors.toList());
+
+            return new IngredientWithSubstitutionsDTO(
+                    ingredient.id, ingredient.name, ingredient.unit,
+                    ingredient.allergens, subDTOs);
+        });
+    }
+
+    @Transactional
+    public Optional<IngredientWithSubstitutionsDTO> deleteSubstitutionOption(Long ingredientId, Long substitutionId) {
+        return ingredientRepository.findByIdOptional(ingredientId).flatMap(ingredient -> {
+            SubstitutionOption option = SubstitutionOption.findById(substitutionId);
+            if (option != null && option.ingredient.id.equals(ingredientId)) {
+                option.delete();
+                ingredient.substitutions.remove(option);
+                
+                List<SubstitutionOptionResponseDTO> subDTOs = ingredient.substitutions.stream()
+                        .map(this::convertSubstitutionOptionToDTO)
+                        .collect(Collectors.toList());
+                
+                return Optional.of(new IngredientWithSubstitutionsDTO(
+                        ingredient.id, ingredient.name, ingredient.unit,
+                        ingredient.allergens, subDTOs));
+            }
+            return Optional.empty();
+        });
+    }
+
+    private SubstitutionOptionResponseDTO convertSubstitutionOptionToDTO(SubstitutionOption option) {
+        List<SubstitutionAlternativeResponseDTO> alternatives = option.alternatives.stream()
+                .map(this::convertSubstitutionAlternativeToDTO)
+                .collect(Collectors.toList());
+
+        return new SubstitutionOptionResponseDTO(
+                option.id,
+                alternatives
+        );
+    }
+
+    private SubstitutionAlternativeResponseDTO convertSubstitutionAlternativeToDTO(SubstitutionAlternative alternative) {
+        Ingredient altIngredient = alternative.alternativeIngredient;
+        
+        // Don't include nested substitutions to avoid infinite recursion from bidirectional links
+        SubstitutionAlternativeResponseDTO dto = new SubstitutionAlternativeResponseDTO(
+                altIngredient.id,
+                altIngredient.name,
+                altIngredient.unit,
+                altIngredient.allergens,
+                alternative.ratio,
+                alternative.description,
+                List.of()
+        );
+        return dto;
     }
 
     public List<SubstitutionDTO> getSubstitutions(String ingredientName) {

@@ -31,10 +31,16 @@ public class Ingredient extends PanacheEntity {
     @Column(nullable = false)
     public String unit;
 
+    @Column
+    public String category;
+
+    @Column(name = "food_group")
+    public String foodGroup;
+
     @ElementCollection(targetClass = Allergen.class, fetch = FetchType.EAGER)
     @Enumerated(EnumType.STRING)
     public List<Allergen> allergens = new ArrayList<>();
 
-    @OneToMany(mappedBy = "originalIngredient", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
-    public List<IngredientSubstitution> substitutions = new ArrayList<>();
+    @OneToMany(mappedBy = "ingredient", fetch = FetchType.EAGER, cascade = CascadeType.ALL, orphanRemoval = true)
+    public List<SubstitutionOption> substitutions = new ArrayList<>();
 }
