@@ -9,10 +9,13 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
+import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.dsoft.entity.dto.IngredientDTO;
+import org.dsoft.entity.dto.InventoryIngredientDTO;
 
 @Entity
 @Table(name = "inventory_ingredients")
@@ -47,5 +50,25 @@ public class InventoryIngredient extends PanacheEntity {
         if (dateAdded == null) {
             dateAdded = LocalDate.now();
         }
+    }
+
+    public InventoryIngredientDTO toDTO() {
+        IngredientDTO ingDTO = new IngredientDTO(
+                this.ingredient.name,
+                this.ingredient.unit,
+                this.ingredient.allergens.stream()
+                        .map(Enum::name)
+                        .collect(Collectors.toList()),
+                null  // ratio field is for substitutions only, not used in inventory
+        );
+
+        return new InventoryIngredientDTO(
+                this.id,
+                ingDTO,
+                this.quantity,
+                this.expiryDate,
+                this.notes,
+                this.dateAdded
+        );
     }
 }

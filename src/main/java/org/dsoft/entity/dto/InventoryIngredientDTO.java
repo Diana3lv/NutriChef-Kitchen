@@ -9,6 +9,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 public class InventoryIngredientDTO {
+    private Long id;
     private IngredientDTO ingredient;
     private String quantity;
     private LocalDate expiryDate;

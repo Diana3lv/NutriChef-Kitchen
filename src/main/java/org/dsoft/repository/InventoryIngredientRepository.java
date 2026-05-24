@@ -26,4 +26,8 @@ public class InventoryIngredientRepository implements PanacheRepository<Inventor
     public long countByUserIdAndIngredientName(Long userId, String ingredientName) {
         return count("inventory.user.id = ?1 and lower(ingredient.name) = lower(?2)", userId, ingredientName);
     }
+
+    public List<InventoryIngredient> findByUserIdAndIngredientId(Long userId, Long ingredientId) {
+        return find("inventory.user.id = ?1 AND ingredient.id = ?2", userId, ingredientId).list();
+    }
 }
