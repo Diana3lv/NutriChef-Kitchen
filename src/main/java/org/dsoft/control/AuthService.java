@@ -18,6 +18,7 @@ import org.mindrot.jbcrypt.BCrypt;
 import io.smallrye.jwt.build.Jwt;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -51,6 +52,7 @@ public class AuthService {
         return new AuthResponse(token, userDTO);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         User user = userService.findUserByEmail(request.email())
             .orElseThrow(() -> new AuthenticationException("Invalid credentials"));
@@ -58,6 +60,13 @@ public class AuthService {
         if (!BCrypt.checkpw(request.password(), user.password)) {
             throw new AuthenticationException("Invalid credentials");
         }
+
+        if (!user.isActive) {
+            throw new AuthenticationException("This account has been deactivated");
+        }
+
+        user.lastLogin = LocalDateTime.now();
+        userService.updateUser(user);
 
         String token = generateToken(user);
         UserDTO userDTO = user.toUserDTO();
