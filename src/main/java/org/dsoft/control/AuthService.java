@@ -2,6 +2,7 @@ package org.dsoft.control;
 
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 
 import org.dsoft.entity.dto.AuthResponse;
@@ -17,12 +18,16 @@ import org.mindrot.jbcrypt.BCrypt;
 import io.smallrye.jwt.build.Jwt;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
 
 @ApplicationScoped
 public class AuthService {
+
+    @Inject
+    UserService userService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -40,23 +45,28 @@ public class AuthService {
         user.role = UserRole.USER;
         user.isActive = true;
         
-        user.persist();
+        userService.createUser(user);
         
         String token = generateToken(user);
         UserDTO userDTO = user.toUserDTO();
         return new AuthResponse(token, userDTO);
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
-        User user = User.findByEmail(request.email());
-        
-        if (user == null) {
-            throw new AuthenticationException("Invalid credentials");
-        }
+        User user = userService.findUserByEmail(request.email())
+            .orElseThrow(() -> new AuthenticationException("Invalid credentials"));
 
         if (!BCrypt.checkpw(request.password(), user.password)) {
             throw new AuthenticationException("Invalid credentials");
         }
+
+        if (!user.isActive) {
+            throw new AuthenticationException("This account has been deactivated");
+        }
+
+        user.lastLogin = LocalDateTime.now();
+        userService.updateUser(user);
 
         String token = generateToken(user);
         UserDTO userDTO = user.toUserDTO();

@@ -1,34 +1,56 @@
 package org.dsoft.control;
 
+import org.dsoft.control.parser.AllergenParser;
+import org.dsoft.control.parser.DietaryPreferencesParser;
+import org.dsoft.control.parser.HealthConditionParser;
 import org.dsoft.entity.dto.NutritionProfileDTO;
 import org.dsoft.entity.model.Allergen;
 import org.dsoft.entity.model.DietaryPreference;
 import org.dsoft.entity.model.NutritionProfile;
 import org.dsoft.entity.model.User;
+import org.dsoft.control.result.HealthConditionValidationResult;
+import org.dsoft.repository.NutritionProfileRepository;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
-import jakarta.ws.rs.NotFoundException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class NutritionProfileService {
 
+    private static final Logger logger = LoggerFactory.getLogger(NutritionProfileService.class);
+
+    @Inject
+    HealthConditionParser healthConditionParser;
+
+    @Inject
+    AllergenParser allergenParser;
+
+    @Inject
+    DietaryPreferencesParser dietaryPreferencesParser;
+    
+    @Inject
+    NutritionProfileRepository nutritionProfileRepository;
+    
+    @Inject
+    UserService userService;
+
     public Optional<NutritionProfile> findByUser(User user) {
-        return NutritionProfile.find("user", user).firstResultOptional();
+        return nutritionProfileRepository.findByUser(user);
     }
 
     @Transactional
     public NutritionProfileDTO getNutritionProfileByUserId(Long userId) {
-        User user = User.findById(userId);
-        if (user == null) {
-            throw new NotFoundException("User not found");
-        }
+        User user = userService.getUserById(userId);
 
         NutritionProfile nutritionProfile = findByUser(user).orElse(new NutritionProfile());
         
@@ -36,16 +58,14 @@ public class NutritionProfileService {
         dto.setAllergens(enumListToNames(nutritionProfile.allergens));
         dto.setDietaryPreferences(enumListToNames(nutritionProfile.dietaryPreferences));
         dto.setMedicalConditions(nutritionProfile.medicalConditions);
-        
+        dto.setIntolerances(nutritionProfile.intolerances);
+        dto.setParsedAvoidIngredients(nutritionProfile.parsedAvoidIngredients);
         return dto;
     }
 
     @Transactional
-    public void updateNutritionProfile(Long userId, NutritionProfileDTO nutritionProfileDTO) {
-        User user = User.findById(userId);
-        if (user == null) {
-            throw new NotFoundException("User not found");
-        }
+    public NutritionProfileDTO updateNutritionProfile(Long userId, NutritionProfileDTO nutritionProfileDTO) {
+        User user = userService.getUserById(userId);
 
         NutritionProfile nutritionProfile = findByUser(user).orElseGet(() -> {
             NutritionProfile newProfile = new NutritionProfile();
@@ -55,9 +75,88 @@ public class NutritionProfileService {
 
         nutritionProfile.allergens = parseAllergens(nutritionProfileDTO.getAllergens());
         nutritionProfile.dietaryPreferences = parseDietaryPreferences(nutritionProfileDTO.getDietaryPreferences());
-        nutritionProfile.medicalConditions = nutritionProfileDTO.getMedicalConditions();
 
-        nutritionProfile.persist();
+        // Validate and update medical conditions
+        String providedMedicalConditions = nutritionProfileDTO.getMedicalConditions();
+        if (providedMedicalConditions != null && !providedMedicalConditions.isBlank()) {
+            HealthConditionValidationResult result = healthConditionParser.validateHealthConditionWithResult(providedMedicalConditions);
+            
+            if (result.isSuccess()) {
+                // LLM validated successfully - save it
+                nutritionProfile.medicalConditions = result.getValue();
+            } else if (result.isRejected()) {
+                // LLM explicitly rejected - don't save, keep previous value
+                logger.info("Medical condition '{}' rejected by LLM, not saving", providedMedicalConditions);
+            } else if (result.isApiError()) {
+                // LLM unavailable - don't save, keep previous value
+                logger.warn("Medical condition '{}' could not be validated (LLM unavailable), not saving", providedMedicalConditions);
+            }
+        }
+
+        // Validate and update intolerances
+        String providedIntolerances = nutritionProfileDTO.getIntolerances();
+        if (providedIntolerances != null && !providedIntolerances.isBlank()) {
+            HealthConditionValidationResult result = healthConditionParser.validateHealthConditionWithResult(providedIntolerances);
+            
+            if (result.isSuccess()) {
+                // LLM validated successfully - save it
+                nutritionProfile.intolerances = result.getValue();
+            } else if (result.isRejected()) {
+                // LLM explicitly rejected - don't save, keep previous value
+                logger.info("Intolerance '{}' rejected by LLM, not saving", providedIntolerances);
+            } else if (result.isApiError()) {
+                // LLM unavailable - don't save, keep previous value
+                logger.warn("Intolerance '{}' could not be validated (LLM unavailable), not saving", providedIntolerances);
+            }
+        }
+
+        nutritionProfile.parsedAvoidIngredients = buildAvoidedIngredientsSet(
+            nutritionProfile.allergens,
+            nutritionProfile.dietaryPreferences,
+            nutritionProfile.medicalConditions,
+            nutritionProfile.intolerances);
+
+        nutritionProfileRepository.persist(nutritionProfile);
+
+        NutritionProfileDTO responseDTO = new NutritionProfileDTO();
+        responseDTO.setAllergens(enumListToNames(nutritionProfile.allergens));
+        responseDTO.setDietaryPreferences(enumListToNames(nutritionProfile.dietaryPreferences));
+        responseDTO.setMedicalConditions(nutritionProfile.medicalConditions);
+        responseDTO.setIntolerances(nutritionProfile.intolerances);
+        responseDTO.setParsedAvoidIngredients(nutritionProfile.parsedAvoidIngredients);
+        return responseDTO;
+    }
+
+    private Set<String> buildAvoidedIngredientsSet(List<Allergen> allergens,
+                                                     List<DietaryPreference> dietaryPreferences,
+                                                     String medicalConditions,
+                                                     String intolerances) {
+        Set<String> avoidIngredients = new java.util.HashSet<>();
+        avoidIngredients.addAll(allergenParser.getAllAllergenIngredients(allergens));
+        avoidIngredients.addAll(dietaryPreferencesParser.getAllIncompatibleFoods(dietaryPreferences));
+        addHealthConditionIngredientsIfPresent(avoidIngredients, medicalConditions, intolerances);
+        return avoidIngredients;
+    }
+
+    private void addHealthConditionIngredientsIfPresent(Set<String> avoidIngredients,
+                                                        String medicalConditions,
+                                                        String intolerances) {
+        if (fieldIsNotEmpty(medicalConditions)) {
+            Set<String> medicalIngredients = healthConditionParser.parseHealthConditions(medicalConditions, null);
+            if (medicalIngredients != null) {
+                avoidIngredients.addAll(medicalIngredients);
+            }
+        }
+        if (fieldIsNotEmpty(intolerances)) {
+            Set<String> toleranceIngredients = healthConditionParser.parseHealthConditions(null, intolerances);
+            if (toleranceIngredients != null) {
+                avoidIngredients.addAll(toleranceIngredients);
+            }
+        }
+    }
+
+    private boolean fieldIsNotEmpty(String field) {
+        return field != null && !field.isBlank();
     }
 
     private List<String> enumListToNames(List<? extends Enum<?>> values) {
@@ -68,6 +167,7 @@ public class NutritionProfileService {
         return values.stream().map(Enum::name).toList();
     }
 
+    @SuppressWarnings("null")
     private List<Allergen> parseAllergens(List<String> values) {
         if (values == null) {
             return Collections.emptyList();
@@ -84,6 +184,7 @@ public class NutritionProfileService {
         }
     }
 
+    @SuppressWarnings("null")
     private List<DietaryPreference> parseDietaryPreferences(List<String> values) {
         if (values == null) {
             return Collections.emptyList();
@@ -107,4 +208,5 @@ public class NutritionProfileService {
 
         return raw.trim().replace('-', '_').replace(' ', '_').toUpperCase();
     }
+
 }

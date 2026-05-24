@@ -5,6 +5,8 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import io.quarkus.security.Authenticated;
 
 import org.dsoft.entity.dto.AuthResponse;
 import org.dsoft.entity.dto.LoginRequest;
@@ -29,7 +31,15 @@ public class AuthController {
 
     @POST
     @Path("/login")
-    public AuthResponse login(LoginRequest request) {
-        return authService.login(request);
+    public Response login(LoginRequest request) {
+        AuthResponse response = authService.login(request);
+        return Response.ok(response).build();
+    }
+
+    @GET
+    @Path("/validate")
+    @Authenticated
+    public Response validateSession() {
+        return Response.ok().build();
     }
 }
