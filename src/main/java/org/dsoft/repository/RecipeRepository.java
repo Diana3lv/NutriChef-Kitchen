@@ -8,9 +8,18 @@ import java.util.stream.Collectors;
 import org.dsoft.entity.model.Allergen;
 import org.dsoft.entity.model.Ingredient;
 import org.dsoft.entity.model.Recipe;
+import org.dsoft.entity.model.RecipeTag;
 
 @ApplicationScoped
 public class RecipeRepository implements PanacheRepository<Recipe> {
+
+    public List<Recipe> searchByTitle(String query) {
+        if (query == null || query.isBlank()) {
+            return listAll();
+        }
+        String pattern = "%" + query.toLowerCase() + "%";
+        return find("LOWER(title) LIKE ?1 OR LOWER(description) LIKE ?1", pattern).list();
+    }
 
     public List<Recipe> findCompatibleRecipes(Set<String> avoidedIngredients) {
         if (avoidedIngredients == null || avoidedIngredients.isEmpty()) {
@@ -73,13 +82,13 @@ public class RecipeRepository implements PanacheRepository<Recipe> {
         return false;
     }
 
-    /**
-     * Check if an allergen (in string form) matches any avoided ingredients.
-     * Maps allergen enum names to their ingredient equivalents.
-     */
     private boolean allergenNameMatches(String allergenName, Set<String> avoidedIngredients) {
         String allergenLower = allergenName.toLowerCase();
         return avoidedIngredients.stream()
             .anyMatch(avoided -> avoided.contains(allergenLower) || allergenLower.contains(avoided));
+    }
+
+    public List<Recipe> findByTag(RecipeTag tag) {
+        return find("?1 MEMBER OF tags", tag).list();
     }
 }
