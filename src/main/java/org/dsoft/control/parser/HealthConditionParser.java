@@ -8,6 +8,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.dsoft.client.GroqClient;
+import org.dsoft.control.result.HealthConditionValidationResult;
 import org.dsoft.control.result.HealthStringValidationResult;
 
 @ApplicationScoped
@@ -27,6 +28,41 @@ public class HealthConditionParser {
         return validateWithLLM(input);
     }
 
+    /**
+     * Validate health condition with detailed result distinguishing between:
+     * - SUCCESS: LLM validated and approved
+     * - REJECTED: LLM explicitly rejected as invalid
+     * - API_ERROR: LLM unavailable (network error, invalid key, etc.)
+     */
+    public HealthConditionValidationResult validateHealthConditionWithResult(String input) {
+        if (input == null || input.isBlank()) {
+            return HealthConditionValidationResult.rejected(input != null ? input : "");
+        }
+        
+        if (groqClient == null) {
+            logger.debug("GroqClient not available, treating as API error");
+            return HealthConditionValidationResult.apiError(input);
+        }
+        
+        try {
+            String response = groqClient.generateResponse(buildValidationPrompt(input));
+            
+            if (response != null && response.trim().equalsIgnoreCase("yes")) {
+                logger.debug("LLM validated '{}' as valid medical condition/intolerance", input);
+                return HealthConditionValidationResult.success(input);
+            } else if (response != null && response.trim().equalsIgnoreCase("no")) {
+                logger.info("LLM rejected '{}' as invalid medical condition/intolerance", input);
+                return HealthConditionValidationResult.rejected(input);
+            } else {
+                logger.warn("LLM returned unclear response for input '{}': {}", input, response);
+                return HealthConditionValidationResult.apiError(input);
+            }
+        } catch (Exception e) {
+            logger.warn("LLM validation failed for input '{}': {}", input, e.getMessage());
+            return HealthConditionValidationResult.apiError(input);
+        }
+    }
+
     public HealthStringValidationResult validateAndCorrectHealthStringWithResult(String input) {
         if (input == null || input.isBlank()) {
             return HealthStringValidationResult.success(null);
@@ -43,50 +79,33 @@ public class HealthConditionParser {
         }
         try {
             String response = groqClient.generateResponse(buildValidationPrompt(input));
-            if (response == null || response.isBlank()) {
-                return Optional.empty();
+            if (response != null && response.trim().equalsIgnoreCase("yes")) {
+                return Optional.of(input);
             }
-            if (isSuspiciousResponse(response)) {
-                logger.warn("LLM returned suspicious response for input '{}': {}", input, response);
-                return Optional.empty();
-            }
-            return isMeaningfulResponse(response) ? Optional.of(input) : Optional.empty();
+            return Optional.empty();
         } catch (Exception e) {
             logger.warn("LLM validation failed: {}", e.getMessage());
             return Optional.empty();
         }
     }
 
-    private boolean isMeaningfulResponse(String response) {
-        String normalized = response.trim().toLowerCase();
-        return normalized.startsWith("yes") || normalized.contains("meaningful") || normalized.contains("valid");
-    }
-
-    private boolean isSuspiciousResponse(String response) {
-        if (response == null || response.isBlank()) {
-            return false;
-        }
-        String lower = response.toLowerCase();
-        return lower.contains("could be") || lower.contains("possibility") || 
-               lower.contains("perhaps") || lower.contains("might be") ||
-               lower.contains("hypothetical") || lower.contains("however") ||
-               response.matches(".*[?]{2,}.*") ||
-               response.split("\n").length > 2;  // Multi-paragraph response
-    }
-
     private String buildValidationPrompt(String input) {
         return """
-            You are a health assistant. Determine if the following represents a real medical condition \
-            or food intolerance. Respond with ONLY "yes" or "no".
-            
-            Say "no" for: "none", "no intolerances", "i don't have", "nothing", "nope", "n/a", \
-            or typos like "no intolrrances".
-            
-            Say "yes" for real conditions like: "diabetes", "lactose intolerance", "wolfram syndrome".
-            
+            You are a medical validation expert. Your task is to determine if the following input string represents a real medical condition, food intolerance, or allergy.
+
+            - **REJECT** (respond with only "no") for:
+                - Generic non-medical words (e.g., "none", "nothing", "house", "car", "test").
+                - Gibberish or random characters (e.g., "asdfghjkl").
+                - Single letters or numbers.
+                - Negations or statements of absence (e.g., "I don't have any", "not applicable").
+
+            - **ACCEPT** (respond with only "yes") for:
+                - Legitimate medical conditions (e.g., "diabetes", "celiac disease", "hypertension", "wolfram syndrome").
+                - Real food intolerances or allergies (e.g., "lactose intolerance", "peanut allergy", "gluten sensitivity").
+
             Input: "%s"
-            
-            Respond with only "yes" or "no":
+
+            Based on these rules, is the input a valid medical condition, intolerance, or allergy? Respond with ONLY "yes" or "no".
             """.formatted(input);
     }
 

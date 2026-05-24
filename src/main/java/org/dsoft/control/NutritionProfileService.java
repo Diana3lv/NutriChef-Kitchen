@@ -8,12 +8,15 @@ import org.dsoft.entity.model.Allergen;
 import org.dsoft.entity.model.DietaryPreference;
 import org.dsoft.entity.model.NutritionProfile;
 import org.dsoft.entity.model.User;
+import org.dsoft.control.result.HealthConditionValidationResult;
 import org.dsoft.repository.NutritionProfileRepository;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +26,8 @@ import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class NutritionProfileService {
+
+    private static final Logger logger = LoggerFactory.getLogger(NutritionProfileService.class);
 
     @Inject
     HealthConditionParser healthConditionParser;
@@ -74,13 +79,35 @@ public class NutritionProfileService {
         // Validate and update medical conditions
         String providedMedicalConditions = nutritionProfileDTO.getMedicalConditions();
         if (providedMedicalConditions != null && !providedMedicalConditions.isBlank()) {
-            nutritionProfile.medicalConditions = healthConditionParser.cleanAndValidateHealthString(providedMedicalConditions).orElse(null);
+            HealthConditionValidationResult result = healthConditionParser.validateHealthConditionWithResult(providedMedicalConditions);
+            
+            if (result.isSuccess()) {
+                // LLM validated successfully - save it
+                nutritionProfile.medicalConditions = result.getValue();
+            } else if (result.isRejected()) {
+                // LLM explicitly rejected - don't save, keep previous value
+                logger.info("Medical condition '{}' rejected by LLM, not saving", providedMedicalConditions);
+            } else if (result.isApiError()) {
+                // LLM unavailable - don't save, keep previous value
+                logger.warn("Medical condition '{}' could not be validated (LLM unavailable), not saving", providedMedicalConditions);
+            }
         }
 
         // Validate and update intolerances
         String providedIntolerances = nutritionProfileDTO.getIntolerances();
         if (providedIntolerances != null && !providedIntolerances.isBlank()) {
-            nutritionProfile.intolerances = healthConditionParser.cleanAndValidateHealthString(providedIntolerances).orElse(null);
+            HealthConditionValidationResult result = healthConditionParser.validateHealthConditionWithResult(providedIntolerances);
+            
+            if (result.isSuccess()) {
+                // LLM validated successfully - save it
+                nutritionProfile.intolerances = result.getValue();
+            } else if (result.isRejected()) {
+                // LLM explicitly rejected - don't save, keep previous value
+                logger.info("Intolerance '{}' rejected by LLM, not saving", providedIntolerances);
+            } else if (result.isApiError()) {
+                // LLM unavailable - don't save, keep previous value
+                logger.warn("Intolerance '{}' could not be validated (LLM unavailable), not saving", providedIntolerances);
+            }
         }
 
         nutritionProfile.parsedAvoidIngredients = buildAvoidedIngredientsSet(
