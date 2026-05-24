@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import io.quarkus.hibernate.orm.panache.PanacheEntity;
 import org.dsoft.entity.dto.UserDTO;
 import java.time.LocalDateTime;
-
 @Entity
 @Table(name = "users")
 public class User extends PanacheEntity {
@@ -21,7 +20,7 @@ public class User extends PanacheEntity {
     @Column(nullable = false)
     public String lastName;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = UserRoleConverter.class)
     @Column(nullable = false)
     public UserRole role;
 
@@ -33,6 +32,9 @@ public class User extends PanacheEntity {
 
     @Column(nullable = false)
     public boolean isActive;
+
+    @Column(name = "last_login")
+    public LocalDateTime lastLogin;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     public Inventory inventory;
