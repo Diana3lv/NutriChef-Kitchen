@@ -11,6 +11,7 @@ import java.util.List;
 public class IngredientDTO {
     private String name;
     private String unit;
+    private String category;
     private List<String> allergens;
     private String ratio;  // e.g., "1:1", "3:4", "3 tbsp per 1 cup", etc.
 }

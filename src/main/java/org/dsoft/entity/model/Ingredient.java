@@ -31,11 +31,9 @@ public class Ingredient extends PanacheEntity {
     @Column(nullable = false)
     public String unit;
 
+    @Enumerated(EnumType.STRING)
     @Column
-    public String category;
-
-    @Column(name = "food_group")
-    public String foodGroup;
+    public IngredientCategory category;
 
     @ElementCollection(targetClass = Allergen.class, fetch = FetchType.EAGER)
     @Enumerated(EnumType.STRING)

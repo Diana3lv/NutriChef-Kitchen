@@ -13,8 +13,10 @@ import org.dsoft.entity.dto.SubstitutionAlternativeInputDTO;
 import org.dsoft.entity.dto.SubstitutionAlternativeResponseDTO;
 import org.dsoft.entity.dto.SubstitutionDTO;
 import org.dsoft.entity.dto.SubstitutionOptionResponseDTO;
+import org.dsoft.entity.dto.UpdateIngredientRequestDTO;
 import org.dsoft.entity.model.Allergen;
 import org.dsoft.entity.model.Ingredient;
+import org.dsoft.entity.model.IngredientCategory;
 import org.dsoft.entity.model.SubstitutionAlternative;
 import org.dsoft.entity.model.SubstitutionOption;
 import org.dsoft.repository.IngredientRepository;
@@ -76,6 +78,7 @@ public class IngredientService {
                         Ingredient newIng = new Ingredient();
                         newIng.name = dto.getName();
                         newIng.unit = dto.getUnit();
+                        newIng.category = IngredientCategory.fromDisplayValue(dto.getCategory());
                         newIng.allergens = convertAllergenStringsToEnum(validatedAllergens);
                         ingredientRepository.persist(newIng);
                         return newIng;
@@ -162,12 +165,20 @@ public class IngredientService {
     }
 
     @Transactional
-    public Optional<Ingredient> update(Long id, Ingredient ingredient) {
+    public Optional<Ingredient> update(Long id, UpdateIngredientRequestDTO dto) {
         return ingredientRepository.findByIdOptional(id)
             .map(entity -> {
-                entity.name = ingredient.name;
-                entity.unit = ingredient.unit;
-                entity.allergens = ingredient.allergens;
+                entity.category = (dto.category == null || dto.category.isBlank())
+                    ? null
+                    : IngredientCategory.fromDisplayValue(dto.category);
+                entity.allergens = dto.allergens == null ? new ArrayList<>()
+                    : dto.allergens.stream()
+                        .map(a -> {
+                            try { return Allergen.valueOf(a); }
+                            catch (IllegalArgumentException e) { return null; }
+                        })
+                        .filter(a -> a != null)
+                        .collect(Collectors.toList());
                 ingredientRepository.persist(entity);
                 return entity;
             });
@@ -250,6 +261,7 @@ public class IngredientService {
                 altIngredient.id,
                 altIngredient.name,
                 altIngredient.unit,
+                altIngredient.category != null ? altIngredient.category.getDisplayValue() : null,
                 altIngredient.allergens,
                 alternative.ratio,
                 alternative.description,
@@ -265,6 +277,7 @@ public class IngredientService {
                     .map(dto -> new SubstitutionDTO(
                             dto.getName(),
                             dto.getUnit(),
+                            dto.getCategory(),
                             dto.getAllergens(),
                             dto.getRatio()
                     ))

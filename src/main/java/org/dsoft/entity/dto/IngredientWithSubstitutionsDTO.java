@@ -15,7 +15,6 @@ public class IngredientWithSubstitutionsDTO {
     private String name;
     private String unit;
     private String category;
-    private String foodGroup;
     private List<Allergen> allergens = new ArrayList<>();
     private List<SubstitutionOptionResponseDTO> substitutions = new ArrayList<>();
 

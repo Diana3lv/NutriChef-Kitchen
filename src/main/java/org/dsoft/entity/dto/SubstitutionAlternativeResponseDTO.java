@@ -14,6 +14,7 @@ public class SubstitutionAlternativeResponseDTO {
     private Long id;
     private String name;
     private String unit;
+    private String category;
     private List<Allergen> allergens = new ArrayList<>();
     private Double ratio;
     private String description;

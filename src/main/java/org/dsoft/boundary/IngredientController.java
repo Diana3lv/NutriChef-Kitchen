@@ -25,6 +25,7 @@ import org.dsoft.entity.dto.SubstitutionAlternativeResponseDTO;
 import org.dsoft.entity.dto.SubstitutionDTO;
 import org.dsoft.entity.dto.SubstitutionOptionResponseDTO;
 import org.dsoft.entity.dto.AddSubstitutionRequestDTO;
+import org.dsoft.entity.dto.UpdateIngredientRequestDTO;
 import org.dsoft.entity.model.Ingredient;
 import org.dsoft.entity.model.SubstitutionAlternative;
 import org.dsoft.entity.model.SubstitutionOption;
@@ -76,8 +77,7 @@ public class IngredientController {
                 ingredient.allergens,
                 substitutionDTOs
         );
-        dto.setCategory(ingredient.category);
-        dto.setFoodGroup(ingredient.foodGroup);
+        dto.setCategory(ingredient.category != null ? ingredient.category.getDisplayValue() : null);
         return dto;
     }
 
@@ -98,6 +98,7 @@ public class IngredientController {
                 altIngredient.id,
                 altIngredient.name,
                 altIngredient.unit,
+                altIngredient.category != null ? altIngredient.category.getDisplayValue() : null,
                 altIngredient.allergens,
                 alternative.ratio,
                 alternative.description,
@@ -127,9 +128,9 @@ public class IngredientController {
     @PUT
     @Path("/{id}")
     @RolesAllowed("ADMIN")
-    public Response update(@PathParam("id") Long id, Ingredient ingredient) {
-        return ingredientService.update(id, ingredient)
-                .map(updated -> Response.ok(updated).build())
+    public Response update(@PathParam("id") Long id, UpdateIngredientRequestDTO dto) {
+        return ingredientService.update(id, dto)
+                .map(updated -> Response.ok(convertToDTO(updated)).build())
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 
