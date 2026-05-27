@@ -374,7 +374,7 @@ public class ShoppingListService {
             item.id,
             item.ingredient.id,
             item.ingredient.name,
-            item.ingredient.category,
+            item.ingredient.category != null ? item.ingredient.category.getDisplayValue() : null,
             item.quantity,
             item.unit,
             item.isPurchased,
