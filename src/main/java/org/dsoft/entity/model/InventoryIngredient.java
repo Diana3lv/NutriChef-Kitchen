@@ -56,6 +56,7 @@ public class InventoryIngredient extends PanacheEntity {
         IngredientDTO ingDTO = new IngredientDTO(
                 this.ingredient.name,
                 this.ingredient.unit,
+                this.ingredient.category != null ? this.ingredient.category.getDisplayValue() : null,
                 this.ingredient.allergens.stream()
                         .map(Enum::name)
                         .collect(Collectors.toList()),

@@ -2,12 +2,19 @@ package org.dsoft.service;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 import org.dsoft.entity.dto.UserAdminDTO;
+import org.dsoft.entity.model.RecipeStatus;
 import org.dsoft.entity.model.User;
 import org.dsoft.entity.model.UserRole;
+import org.dsoft.repository.NutritionProfileRepository;
+import org.dsoft.repository.RecipeFeedbackRepository;
+import org.dsoft.repository.ShoppingListItemRepository;
+import org.dsoft.repository.UserRecipeCollectionRepository;
+import org.dsoft.repository.UserRecipeStatusRepository;
 import org.dsoft.repository.UserRepository;
 
 @ApplicationScoped
@@ -15,6 +22,21 @@ public class UserManagementService {
 
     @Inject
     UserRepository userRepository;
+
+    @Inject
+    ShoppingListItemRepository shoppingListItemRepository;
+
+    @Inject
+    UserRecipeStatusRepository userRecipeStatusRepository;
+
+    @Inject
+    UserRecipeCollectionRepository userRecipeCollectionRepository;
+
+    @Inject
+    NutritionProfileRepository nutritionProfileRepository;
+
+    @Inject
+    RecipeFeedbackRepository recipeFeedbackRepository;
 
     public List<UserAdminDTO> getAllUsers(String searchQuery, String roleFilter) {
         List<User> users;
@@ -96,11 +118,19 @@ public class UserManagementService {
         return mapToAdminDTO(user);
     }
 
+    @Transactional
     public void deleteUser(Long userId) {
         User user = userRepository.findById(userId);
         if (user == null) {
             throw new IllegalArgumentException("User not found");
         }
+        // Delete FK-constrained child records before removing the user
+        shoppingListItemRepository.delete("user.id", userId);
+        userRecipeStatusRepository.delete("user.id", userId);
+        userRecipeCollectionRepository.delete("user.id", userId);
+        recipeFeedbackRepository.delete("user.id", userId);
+        nutritionProfileRepository.delete("user.id", userId);
+        // Inventory cascades via User.inventory (CascadeType.ALL + orphanRemoval)
         userRepository.deleteById(userId);
     }
 
@@ -113,8 +143,8 @@ public class UserManagementService {
     }
 
     private UserAdminDTO mapToAdminDTO(User user) {
-        // Note: recipesCreatedCount would require a separate query to count recipes
-        // This is left as 0 for now - can be populated by RecipeRepository if needed
+        long recipesDoneCount = userRecipeStatusRepository.count(
+            "user.id = ?1 and status = ?2", user.id, RecipeStatus.DONE);
         return new UserAdminDTO(
             user.id,
             user.email,
@@ -124,7 +154,7 @@ public class UserManagementService {
             user.createdAt,
             user.lastLogin,
             user.isActive,
-            0L // TODO: implement recipes count query
+            recipesDoneCount
         );
     }
 }

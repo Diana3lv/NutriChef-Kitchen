@@ -122,7 +122,7 @@ public class UserManagementController {
     public Response deleteUser(@PathParam("userId") Long userId) {
         try {
             userManagementService.deleteUser(userId);
-            return Response.ok("User deleted").build();
+            return Response.noContent().build();
         } catch (IllegalArgumentException e) {
             return Response.status(Response.Status.NOT_FOUND)
                 .entity(e.getMessage())
